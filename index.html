@@ -82,15 +82,17 @@
         return alert("Upload error: " + error.message);
       }
 
-      // Public URL
-      const { data: publicUrl } = supabase.storage
-        .from("videos")
-        .getPublicUrl(data.path);
+// Public URL correcto
+const { data: publicData } = supabase.storage
+  .from("videos")
+  .getPublicUrl(data.path);
 
-      // Save metadata
-      await supabase.from("videos_meta").insert([
-        { title: file.name, url: publicUrl.publicUrl, user_id: user.id, nickname }
-      ]);
+const videoUrl = publicData.publicUrl;
+
+// Guardar metadata
+await supabase.from("videos_meta").insert([
+  { title: file.name, url: videoUrl, user_id: user.id, nickname }
+]);
 
       alert("✅ Video uploaded successfully");
       listVideos();
