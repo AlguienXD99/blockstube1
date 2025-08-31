@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blockstube</title>
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // Tu configuración de Supabase
+    const supabaseUrl = "https://rhrreefssdilpglnxnnp.supabase.co";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocnJlZWZzc2RpbHBnbG54bm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MDE1ODIsImV4cCI6MjA3MjE3NzU4Mn0.ecJOFHcw3FhsWOIbreOzCxE6UhHA4gE-kxjfeWvmnLA"; // usa la anon/public, no la service!
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Manejo de subida de video
+    window.subirVideo = async () => {
+      const fileInput = document.getElementById("videoInput");
+      const file = fileInput.files[0];
+      if (!file) return alert("Selecciona un video primero");
+
+      // Subir al bucket "videos"
+      const { data, error } = await supabase.storage
+        .from("videos")
+        .upload(`uploads/${Date.now()}_${file.name}`, file);
+
+      if (error) {
+        console.error("Error al subir:", error);
+        return alert("Error al subir: " + error.message);
+      }
+
+      // Obtener URL pública
+      const { data: publicUrl } = supabase.storage
+        .from("videos")
+        .getPublicUrl(data.path);
+
+      // Guardar metadatos en la base de datos
+      await supabase.from("videos_meta").insert([
+        { title: file.name, url: publicUrl.publicUrl }
+      ]);
+
+      alert("✅ Video subido con éxito");
+      listarVideos();
+    };
+
+    // Mostrar todos los videos guardados
+    async function listarVideos() {
+      const { data, error } = await supabase.from("videos_meta").select("*");
+      if (error) {
+        console.error(error);
+        return;
+      }
+      const container = document.getElementById("videos");
+      container.innerHTML = "";
+      data.forEach(v => {
+        container.innerHTML += `
+          <div>
+            <h3>${v.title}</h3>
+            <video src="${v.url}" width="400" controls></video>
+          </div>
+        `;
+      });
+    }
+
+    listarVideos();
+  </script>
+</head>
+<body>
+  <h1>Blockstube</h1>
+  <input type="file" id="videoInput" accept="video/*">
+  <button onclick="subirVideo()">Subir video</button>
+  <div id="videos"></div>
+</body>
+</html>
