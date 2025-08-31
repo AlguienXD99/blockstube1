@@ -6,42 +6,79 @@
   <script type="module">
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-    // Tu configuración de Supabase
     const supabaseUrl = "https://rhrreefssdilpglnxnnp.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocnJlZWZzc2RpbHBnbG54bm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MDE1ODIsImV4cCI6MjA3MjE3NzU4Mn0.ecJOFHcw3FhsWOIbreOzCxE6UhHA4gE-kxjfeWvmnLA"; // usa la anon/public, no la service!
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocnJlZWZzc2RpbHBnbG54bm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MDE1ODIsImV4cCI6MjA3MjE3NzU4Mn0.ecJOFHcw3FhsWOIbreOzCxE6UhHA4gE-kxjfeWvmnLA";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Manejo de subida de video
+    // --- Registro ---
+    window.registrar = async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        alert("Error en registro: " + error.message);
+      } else {
+        alert("✅ Revisa tu correo para confirmar la cuenta");
+      }
+    };
+
+    // --- Login ---
+    window.login = async () => {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        alert("Error al iniciar sesión: " + error.message);
+      } else {
+        alert("✅ Sesión iniciada");
+        mostrarSesion();
+      }
+    };
+
+    // --- Logout ---
+    window.logout = async () => {
+      await supabase.auth.signOut();
+      alert("Sesión cerrada");
+      mostrarSesion();
+    };
+
+    // --- Subida de video ---
     window.subirVideo = async () => {
       const fileInput = document.getElementById("videoInput");
       const file = fileInput.files[0];
       if (!file) return alert("Selecciona un video primero");
 
-      // Subir al bucket "videos"
+      // Verificar usuario logueado
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return alert("⚠️ Debes iniciar sesión para subir videos");
+
+      // Subir al bucket
       const { data, error } = await supabase.storage
         .from("videos")
-        .upload(`uploads/${Date.now()}_${file.name}`, file);
+        .upload(`user_${user.id}/${Date.now()}_${file.name}`, file);
 
       if (error) {
-        console.error("Error al subir:", error);
+        console.error(error);
         return alert("Error al subir: " + error.message);
       }
 
-      // Obtener URL pública
+      // URL pública
       const { data: publicUrl } = supabase.storage
         .from("videos")
         .getPublicUrl(data.path);
 
-      // Guardar metadatos en la base de datos
+      // Guardar en la base de datos
       await supabase.from("videos_meta").insert([
-        { title: file.name, url: publicUrl.publicUrl }
+        { title: file.name, url: publicUrl.publicUrl, user_id: user.id }
       ]);
 
       alert("✅ Video subido con éxito");
       listarVideos();
     };
 
-    // Mostrar todos los videos guardados
+    // --- Listar videos ---
     async function listarVideos() {
       const { data, error } = await supabase.from("videos_meta").select("*");
       if (error) {
@@ -60,13 +97,38 @@
       });
     }
 
+    // Mostrar estado de sesión
+    async function mostrarSesion() {
+      const { data: { user } } = await supabase.auth.getUser();
+      document.getElementById("estadoSesion").innerText = user
+        ? `Conectado como: ${user.email}`
+        : "No has iniciado sesión";
+    }
+
     listarVideos();
+    mostrarSesion();
   </script>
 </head>
 <body>
   <h1>Blockstube</h1>
+
+  <h2>Autenticación</h2>
+  <input type="email" id="email" placeholder="Correo">
+  <input type="password" id="password" placeholder="Contraseña">
+  <button onclick="registrar()">Registrarse</button>
+  <button onclick="login()">Iniciar sesión</button>
+  <button onclick="logout()">Cerrar sesión</button>
+  <p id="estadoSesion"></p>
+
+  <hr>
+
+  <h2>Subir video</h2>
   <input type="file" id="videoInput" accept="video/*">
   <button onclick="subirVideo()">Subir video</button>
+
+  <hr>
+
+  <h2>Videos</h2>
   <div id="videos"></div>
 </body>
 </html>
