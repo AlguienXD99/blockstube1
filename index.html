@@ -52,6 +52,20 @@
       alert("Logged out");
       showSession();
     };
+// --- Update Nickname ---
+window.updateNick = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  const newNick = document.getElementById("newNick").value;
+
+  if (user && newNick.trim()) {
+    const { error } = await supabase
+      .from("profiles")
+      .upsert({ id: user.id, nickname: newNick.trim() });
+
+    if (error) alert("Error: " + error.message);
+    else alert("✅ Nickname updated!");
+  }
+};
 
     // --- Upload Video ---
     window.uploadVideo = async () => {
@@ -142,21 +156,6 @@ await supabase.from("videos_meta").insert([
   <p id="sessionStatus"></p>
 <input type="text" id="newNick" placeholder="New nickname">
 <button onclick="updateNick()">Update Nickname</button>
-<script>
-async function updateNick() {
-  const { data: { user } } = await supabase.auth.getUser();
-  const newNick = document.getElementById("newNick").value;
-
-  if (user && newNick.trim()) {
-    const { error } = await supabase
-      .from("profiles")
-      .upsert({ id: user.id, nickname: newNick.trim() });
-
-    if (error) alert("Error: " + error.message);
-    else alert("✅ Nickname updated!");
-  }
-}
-</script>
 
   <hr>
 
