@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Blockstube</title>
@@ -7,20 +7,27 @@
     import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
     const supabaseUrl = "https://rhrreefssdilpglnxnnp.supabase.co";
-    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocnJlZWZzc2RpbHBnbG54bm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MDE1ODIsImV4cCI6MjA3MjE3NzU4Mn0.ecJOFHcw3FhsWOIbreOzCxE6UhHA4gE-kxjfeWvmnLA";
+    const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJocnJlZWZzc2RpbHBnbG54bm5wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2MDE1ODIsImV4cCI6MjA3MjE3NzU4Mn0.ecJOFHcw3FhsWOIbreOzCxE6UhHA4gE-kxjfeWvmnLA"; 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // --- Registro ---
-    window.registrar = async () => {
+    // --- Sign Up ---
+    window.register = async () => {
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
+      const nickname = document.getElementById("nickname").value;
 
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
-        alert("Error en registro: " + error.message);
-      } else {
-        alert("✅ Revisa tu correo para confirmar la cuenta");
+        alert("Registration error: " + error.message);
+        return;
       }
+
+      // Save nickname in profiles
+      if (data.user) {
+        await supabase.from("profiles").insert([{ id: data.user.id, nickname }]);
+      }
+
+      alert("✅ Check your email to confirm your account");
     };
 
     // --- Login ---
@@ -30,56 +37,65 @@
 
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
-        alert("Error al iniciar sesión: " + error.message);
+        alert("Login error: " + error.message);
       } else {
-        alert("✅ Sesión iniciada");
-        mostrarSesion();
+        alert("✅ Logged in");
+        showSession();
       }
     };
 
     // --- Logout ---
     window.logout = async () => {
       await supabase.auth.signOut();
-      alert("Sesión cerrada");
-      mostrarSesion();
+      alert("Logged out");
+      showSession();
     };
 
-    // --- Subida de video ---
-    window.subirVideo = async () => {
+    // --- Upload Video ---
+    window.uploadVideo = async () => {
       const fileInput = document.getElementById("videoInput");
       const file = fileInput.files[0];
-      if (!file) return alert("Selecciona un video primero");
+      if (!file) return alert("Select a video first");
 
-      // Verificar usuario logueado
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return alert("⚠️ Debes iniciar sesión para subir videos");
+      if (!user) return alert("⚠️ You must log in to upload videos");
 
-      // Subir al bucket
+      // Get user's nickname
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("nickname")
+        .eq("id", user.id)
+        .single();
+
+      const nickname = profile?.nickname || "Anonymous";
+
+      // Upload to bucket
       const { data, error } = await supabase.storage
         .from("videos")
         .upload(`user_${user.id}/${Date.now()}_${file.name}`, file);
 
       if (error) {
         console.error(error);
-        return alert("Error al subir: " + error.message);
+        return alert("Upload error: " + error.message);
       }
 
-      // URL pública
+      // Public URL
       const { data: publicUrl } = supabase.storage
         .from("videos")
         .getPublicUrl(data.path);
 
-      // Guardar en la base de datos
+      // Save metadata
       await supabase.from("videos_meta").insert([
-        { title: file.name, url: publicUrl.publicUrl, user_id: user.id }
+        { title: file.name, url: publicUrl.publicUrl, user_id: user.id, nickname }
       ]);
 
-      alert("✅ Video subido con éxito");
-      listarVideos();
+      alert("✅ Video uploaded successfully");
+      listVideos();
     };
 
-    // --- Listar videos ---
-    async function listarVideos() {
+    // --- List Videos ---
+    async function listVideos() {
       const { data, error } = await supabase.from("videos_meta").select("*");
       if (error) {
         console.error(error);
@@ -90,41 +106,42 @@
       data.forEach(v => {
         container.innerHTML += `
           <div>
-            <h3>${v.title}</h3>
+            <h3>${v.title} (by ${v.nickname || "Unknown"})</h3>
             <video src="${v.url}" width="400" controls></video>
           </div>
         `;
       });
     }
 
-    // Mostrar estado de sesión
-    async function mostrarSesion() {
+    // --- Session Status ---
+    async function showSession() {
       const { data: { user } } = await supabase.auth.getUser();
-      document.getElementById("estadoSesion").innerText = user
-        ? `Conectado como: ${user.email}`
-        : "No has iniciado sesión";
+      document.getElementById("sessionStatus").innerText = user
+        ? `Logged in as: ${user.email}`
+        : "Not logged in";
     }
 
-    listarVideos();
-    mostrarSesion();
+    listVideos();
+    showSession();
   </script>
 </head>
 <body>
   <h1>Blockstube</h1>
 
-  <h2>Autenticación</h2>
-  <input type="email" id="email" placeholder="Correo">
-  <input type="password" id="password" placeholder="Contraseña">
-  <button onclick="registrar()">Registrarse</button>
-  <button onclick="login()">Iniciar sesión</button>
-  <button onclick="logout()">Cerrar sesión</button>
-  <p id="estadoSesion"></p>
+  <h2>Authentication</h2>
+  <input type="text" id="nickname" placeholder="Nickname">
+  <input type="email" id="email" placeholder="Email">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="register()">Sign Up</button>
+  <button onclick="login()">Log In</button>
+  <button onclick="logout()">Log Out</button>
+  <p id="sessionStatus"></p>
 
   <hr>
 
-  <h2>Subir video</h2>
+  <h2>Upload Video</h2>
   <input type="file" id="videoInput" accept="video/*">
-  <button onclick="subirVideo()">Subir video</button>
+  <button onclick="uploadVideo()">Upload</button>
 
   <hr>
 
