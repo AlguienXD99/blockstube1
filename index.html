@@ -14,7 +14,9 @@
     window.register = async () => {
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-      const nickname = document.getElementById("nickname").value;
+      let nickname = document.getElementById("nickname").value.trim();
+
+      if (!nickname) nickname = "Anon"; // 👈 valor por defecto
 
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) {
@@ -68,7 +70,7 @@
         .eq("id", user.id)
         .single();
 
-      const nickname = profile?.nickname || "Anonymous";
+      const nickname = profile?.nickname || "Anon"; // 👈 fallback
 
       // Upload to bucket
       const { data, error } = await supabase.storage
@@ -106,7 +108,7 @@
       data.forEach(v => {
         container.innerHTML += `
           <div>
-            <h3>${v.title} (by ${v.nickname || "Unknown"})</h3>
+            <h3>${v.title} (by ${v.nickname || "Anon"})</h3> <!-- 👈 fallback -->
             <video src="${v.url}" width="400" controls></video>
           </div>
         `;
